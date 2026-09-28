@@ -103,7 +103,7 @@ _guard_validate_allowlist() {
     done
 }
 
-# Normalise a path lexically (no filesystem access, so it works for REMOTE
+# Normalize a path lexically (no filesystem access, so it works for REMOTE
 # paths): collapse '//' and '/./', resolve '/x/../' pairs, strip trailing '/'.
 guard_normalize_path() {
     local p="$1" out=() part

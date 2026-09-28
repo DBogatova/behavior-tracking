@@ -17,7 +17,7 @@ frame:
 
 For each run this tool finds those interesting features in the published pupil
 trace, pulls the corresponding source frames from the SCC cluster (guarded), and
-renders a montage: the trace with event markers above cropped, nearest-neighbour
+renders a montage: the trace with event markers above cropped, nearest-neighbor
 upscaled snapshots of the eye, each overlaid with the hand-drawn ellipse and the
 pipeline's detected bright blob, so a human can adjudicate physiology vs artefact.
 
@@ -89,7 +89,7 @@ SCC_HOST = os.environ.get("SCC_HOST", "scc")
 
 EVENT_TYPES = ["rise", "drop", "flat_small", "flat_high"]
 
-# Colours for overlays.
+# Colors for overlays.
 COL_ELLIPSE = "#00e5ff"   # hand-drawn eye ellipse
 COL_BLOB = "#ff3b30"      # pipeline-detected bright blob
 
@@ -102,7 +102,7 @@ class GuardError(RuntimeError):
 # SAFETY GUARDS -- these MIRROR batch/scc_guard.sh in Python.
 # Any change here should be kept in sync with that file. They are re-implemented
 # (rather than shelled out) so the fetch path has no bash dependency, but the
-# semantics are identical: lexical path normalisation, confinement to
+# semantics are identical: lexical path normalization, confinement to
 # SCC_ALLOWED_ROOTS, rejection of shell metacharacters, and refusal of every
 # rsync --delete-family / truncating flag.
 # =========================================================================== #
@@ -112,7 +112,7 @@ def _allowed_roots() -> list[str]:
 
 
 def guard_normalize_path(p: str) -> str:
-    """Lexically normalise an absolute path (no filesystem access, so it works
+    """Lexically normalize an absolute path (no filesystem access, so it works
     for REMOTE paths): collapse '//' and '/./', resolve '/x/../' pairs, strip a
     trailing '/'. Returns '__GUARD_ESCAPE__' if the path escapes above root.
     Mirrors guard_normalize_path in scc_guard.sh."""
@@ -137,7 +137,7 @@ _METACHARS = set("$`;&|><()\n*?")
 
 def assert_remote_path_allowed(raw: str, label: str = "path") -> str:
     """Abort unless <raw> is absolute, escape-free, metachar-free and inside
-    SCC_ALLOWED_ROOTS. Returns the normalised path. Mirrors
+    SCC_ALLOWED_ROOTS. Returns the normalized path. Mirrors
     assert_remote_path_allowed in scc_guard.sh."""
     if not raw:
         raise GuardError(f"{label} is empty; refusing to operate on an unset remote path.")

@@ -115,7 +115,7 @@ CROP_TO_WINDOW="${CROP_TO_WINDOW:-0}"
 # 2P (Femtonics) pupils image BRIGHT; see submit_behavior.qsub.
 PUPIL_POLARITY="${PUPIL_POLARITY:-bright}"
 # 0 (default) = lightweight remote `find` for the inventory stage: no MATLAB
-# and no licence token on a shared login node. 1 = full find_runs report.
+# and no license token on a shared login node. 1 = full find_runs report.
 DEEP_INVENTORY="${DEEP_INVENTORY:-0}"
 CROP_START="${CROP_START:-0}"                # seconds trimmed after alignment in the plots
 
@@ -390,7 +390,7 @@ stage_preflight() {
         # remote MATLAB check cannot run; only a confirmed shortfall is a FAIL.
         if [ "${roi_ok}" -eq 1 ] && [ "${DEEP_INVENTORY}" -eq 0 ]; then
             # LOGIN-NODE COURTESY: verifying coverage means reading the ROI .mat
-            # and walking the data tree, which needs MATLAB and a licence token
+            # and walking the data tree, which needs MATLAB and a license token
             # on a login node. Skipped by default; the batch job validates ROIs
             # per run anyway and records any missing one as a failed run in the
             # manifest. Pass --deep-inventory to check up front.
@@ -474,7 +474,7 @@ stage_inventory() {
         print_no_master; return 1
     fi
     # LOGIN-NODE COURTESY: the default inventory is a plain `find` that counts
-    # TIFFs per directory. It starts no MATLAB, consumes no licence token, and
+    # TIFFs per directory. It starts no MATLAB, consumes no license token, and
     # is wrapped in nice + timeout so it cannot load a shared login node. The
     # authoritative inventory happens inside the batch job anyway (that is what
     # run_behavior_batch calls find_runs for); this is operator information.
@@ -482,14 +482,14 @@ stage_inventory() {
     if [ "${DEEP_INVENTORY}" -eq 1 ]; then
         # Opt-in: the richer find_runs report (mouse/date/trigger association).
         # Still single-threaded and nice'd, but it DOES start MATLAB on a login
-        # node and take a licence, which is why it is not the default.
+        # node and take a license, which is why it is not the default.
         local mstmt
         mstmt="addpath('${REMOTE_CODE_DIR}'); find_runs('${DATA_ROOT}', struct('report',true,'min_frames',${MIN_FRAMES}));"
-        warn "inventory: --deep-inventory starts MATLAB on a LOGIN NODE (uses a licence)."
+        warn "inventory: --deep-inventory starts MATLAB on a LOGIN NODE (uses a license)."
         rcmd="$(guard_nice_prefix)module load ${MATLAB_MODULE} 2>/dev/null; $(guard_nice_prefix)matlab -nodisplay -nosplash -singleCompThread -batch \"${mstmt}\""
     else
         rcmd="$(guard_timeout_prefix)$(guard_nice_prefix)find '${DATA_ROOT}' -type f \( -iname '*.tif' -o -iname '*.tiff' \) -printf '%h\\n' 2>/dev/null | sort | uniq -c | sort -rn | awk -v m=${MIN_FRAMES} '\$1 >= m {printf \"%8d  %s\\n\", \$1, \$2}'"
-        log "inventory: lightweight find (no MATLAB, no licence). Use --deep-inventory for the full find_runs report."
+        log "inventory: lightweight find (no MATLAB, no license). Use --deep-inventory for the full find_runs report."
     fi
     run_cmd ssh -o BatchMode=yes -o ConnectTimeout="${SSH_CONNECT_TIMEOUT}" "${SCC_HOST}" "${rcmd}"
 }

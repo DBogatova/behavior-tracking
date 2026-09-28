@@ -35,7 +35,7 @@
 #     enumeration command is screened with assert_remote_cmd_safe; and we only
 #     ever rsync SINGLE files, never whole run folders.
 #   * LOGIN-NODE COURTESY: run discovery is a nice'd, timeout-bounded remote
-#     `find` -- it starts NO MATLAB and consumes NO MATLAB licence token.
+#     `find` -- it starts NO MATLAB and consumes NO MATLAB license token.
 #   * FAILS FAST, NEVER HANGS: refuses up front if there is no live
 #     ControlMaster socket, and uses ssh BatchMode so it can never block on Duo.
 #   * DRY-RUN BY DEFAULT: with no flags it shows what WOULD be staged and
@@ -143,9 +143,9 @@ EOF
     exit 1
 fi
 
-# ---- discover runs + their MIDDLE frame remotely (NO MATLAB, NO licence) ----
+# ---- discover runs + their MIDDLE frame remotely (NO MATLAB, NO license) ----
 # LOGIN-NODE COURTESY: this is a plain `find` wrapped in nice + timeout (via the
-# guard prefixes). It starts no MATLAB and takes no licence token.
+# guard prefixes). It starts no MATLAB and takes no license token.
 #
 # HOW THE MIDDLE FRAME IS PICKED (deterministic, and matches collect_rois.m):
 #   find emits "<dir>\t<filename>\t<bytes>" for every TIFF, then `sort` orders

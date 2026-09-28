@@ -472,7 +472,7 @@ def check_run(row: dict, out_dir: Path, tol: Tolerances) -> RunReport:
     if mat_path and nonempty(mat_path):
         csv_row_count = float(len(beh)) if beh is not None else float("nan")
         # crop_to_window may be absent in manifests written before the option
-        # existed; _num yields NaN and the check falls back to legacy behaviour.
+        # existed; _num yields NaN and the check falls back to legacy behavior.
         _mat_csv_crosscheck(rep, mat_path, in_win_count,
                             csv_row_count, _num(row.get("crop_to_window")))
     else:

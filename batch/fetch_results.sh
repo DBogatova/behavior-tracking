@@ -90,7 +90,7 @@ DRY_RUN=1              # 1 = dry-run (default), 0 = transfer (--go)
 # consumer-visible artifact (it lands in trigger/ where behavior_plots.py
 # globs '*_trigger.csv'), so excluding it by default made every orchestrated
 # run report "skipped-missing-source" at publish time. Pass --no-trigger-csv
-# to skip it when you only need the behaviour/accel signals and want a
+# to skip it when you only need the behavior/accel signals and want a
 # faster transfer.
 WITH_TRIGGER_CSV=1
 

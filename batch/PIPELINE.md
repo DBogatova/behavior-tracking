@@ -294,7 +294,7 @@ env-overridable. Most-used:
 
 ## Cluster safety
 
-The SCC is a **shared** cluster. The pipeline's cluster-facing behaviour is
+The SCC is a **shared** cluster. The pipeline's cluster-facing behavior is
 funnelled through one sourced guard library, `scc_guard.sh`, so the safety
 rules live in a single auditable place. Every script that can touch the cluster
 sources it: `run_pipeline.sh`, `sync_to_scc.sh`, `fetch_results.sh`, and the
@@ -380,14 +380,14 @@ MATs, so raw data is not clobbered. Already-processed runs are **skipped, not
 recomputed or removed** (`OVERWRITE` defaults to `false`,
 `submit_behavior.qsub:95`; set `OVERWRITE=true` to force reprocessing).
 
-### Login-node behaviour
+### Login-node behavior
 
 The default `inventory` stage is a lightweight `nice`'d `find` that counts TIFFs
-per directory — **no MATLAB and no licence token** (`run_pipeline.sh:458`, which
-also logs `inventory: lightweight find (no MATLAB, no licence)`). Passing
+per directory — **no MATLAB and no license token** (`run_pipeline.sh:458`, which
+also logs `inventory: lightweight find (no MATLAB, no license)`). Passing
 `--deep-inventory` opts into the richer `find_runs` MATLAB report
 (`run_pipeline.sh:449`); this **starts MATLAB on a login node and consumes a
-shared licence token**, which is why it is not the default and prints a warning.
+shared license token**, which is why it is not the default and prints a warning.
 All real processing runs on a compute node via `qsub submit_behavior.qsub`, not
 on the login node.
 
@@ -399,7 +399,7 @@ on the login node.
 | Upload **code** into `REMOTE_CODE_DIR` via rsync, dry-run by default (`sync_to_scc.sh` only) | Pass any `rsync --delete`-family flag (verified: none present) |
 | Submit **one** `qsub` batch job | Loop-submit jobs (no submission loop exists; `WAIT_TIMEOUT_S`/`WAIT_POLL_S`-bounded wait) |
 | CREATE output under `OUT_DIR` (`csv/ mat/ figures/ batch_manifest.csv`) on a compute node | Delete, truncate, `mv`, or overwrite raw TIFFs/trigger MATs |
-| Default inventory: `nice`'d `find`, no MATLAB/licence | Run heavy work, or (by default) MATLAB, on a login node |
+| Default inventory: `nice`'d `find`, no MATLAB/license | Run heavy work, or (by default) MATLAB, on a login node |
 
 ### Residual risk (audit findings — several are UNFIXED in the current code)
 
@@ -441,7 +441,7 @@ is not misled by the guarantees above:
   "timeout … s". Separately, the `rois`-stage coverage check launches MATLAB on a
   login node with **no `nice` and no `-singleCompThread`** and **regardless of
   `--deep-inventory`** (`run_pipeline.sh:481`), contradicting the guarantee that
-  login-node MATLAB/licence use is opt-in.
+  login-node MATLAB/license use is opt-in.
 - **`SCC_ALLOWED_ROOTS` is itself env-overridable and unvalidated (design
   limit).** Confinement holds for the **default** root only. Widening the root to
   a broader-but-normal prefix (e.g. `/projectnb/devorlab` or `/projectnb`) lets

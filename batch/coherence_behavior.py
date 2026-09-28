@@ -1,14 +1,14 @@
 #!/usr/bin/env python
-"""coherence_behavior.py -- behaviour companion figure for a *_clean_coherence plot.
+"""coherence_behavior.py -- behavior companion figure for a *_clean_coherence plot.
 
 Writes a SEPARATE figure (never touches the existing coherence PNG/PDF) whose
 x-axis is IMAGING FRAME, matching the coherence figure exactly, so the two can be
 stacked. Overlays the multi-segment network events from
-<run>_clean_coherence_network_events.csv on the behaviour traces, using the same
-colour convention as the coherence figure (soma-led red, branch-led blue).
+<run>_clean_coherence_network_events.csv on the behavior traces, using the same
+color convention as the coherence figure (soma-led red, branch-led blue).
 
 TIME MAPPING (the crux)
-  The coherence figure's x-axis is imaging FRAME, while behaviour is on
+  The coherence figure's x-axis is imaging FRAME, while behavior is on
   aligned_time_s (0 = first imaging-trigger rising edge). The imaging frame rate
   is not stored anywhere we can read, so it is DERIVED:
 
@@ -17,7 +17,7 @@ TIME MAPPING (the crux)
 
   For run7 of 06-25-2026 that gives 1431 / 240.120 = 5.9595 Hz. The nominal rate
   is presumably 6 Hz; assuming exactly 6 would place the last frame 1.6 s earlier
-  (238.5 s vs 240.1 s), i.e. ~16 behaviour samples of drift by the end of the run.
+  (238.5 s vs 240.1 s), i.e. ~16 behavior samples of drift by the end of the run.
   The derived rate is used because it is self-consistent with the trigger data:
   it forces frame 0 -> window start and the last frame -> window end. Pass
   --imaging-rate to override if you have the true value from the microscope.
@@ -40,7 +40,7 @@ mpl.rcParams["font.family"] = "sans-serif"
 mpl.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
 mpl.rcParams["pdf.fonttype"] = 42
 
-# colours matched to behaviour_panels.py so figures look like one family
+# colors matched to behavior_panels.py so figures look like one family
 C_PUPIL, C_WHISK, C_ACCEL = "blue", "orange", "purple"
 ACCEL_YMAX = 0.25               # project-wide convention
 
@@ -70,11 +70,11 @@ def find_imaging_frames(run_dir: Path) -> tuple[int, str]:
     raise SystemExit(f"ERROR: no per-segment trace CSV or 4D *_clean.tif in {run_dir} to count imaging frames")
 
 
-def load_behaviour(project_root: Path, mouse: str, folder_date: str, base: str):
+def load_behavior(project_root: Path, mouse: str, folder_date: str, base: str):
     beh = project_root / mouse / folder_date / "behavior" / f"{base}_behavior.csv"
     mat = project_root / mouse / folder_date / "behavior" / f"{base}_behavior.mat"
     if not beh.exists():
-        raise SystemExit(f"ERROR: behaviour CSV not found: {beh}")
+        raise SystemExit(f"ERROR: behavior CSV not found: {beh}")
     b = pd.read_csv(beh)
     win = None
     if mat.exists():
@@ -89,7 +89,7 @@ def load_behaviour(project_root: Path, mouse: str, folder_date: str, base: str):
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Behaviour companion figure on the coherence figure's imaging-frame axis.")
+        description="Behavior companion figure on the coherence figure's imaging-frame axis.")
     ap.add_argument("--run-dir", required=True,
                     help="the preprocessed/<runN> directory holding *_clean_coherence.png")
     ap.add_argument("--mouse", required=True)
@@ -104,7 +104,7 @@ def main() -> int:
     ap.add_argument("--formats", nargs="+", choices=["png", "pdf"], default=["png", "pdf"])
     ap.add_argument("--dpi", type=int, default=150)
     ap.add_argument("--event-lines", action="store_true",
-                    help="draw the network-event vertical lines on the behaviour traces (off by default)")
+                    help="draw the network-event vertical lines on the behavior traces (off by default)")
     args = ap.parse_args()
 
     run_dir = Path(args.run_dir)
@@ -114,22 +114,22 @@ def main() -> int:
     base = f"{args.mouse}_{args.mat_date}_{args.run_id}"
 
     n_img, src = find_imaging_frames(run_dir)
-    b, win, mat = load_behaviour(root, args.mouse, args.folder_date, base)
+    b, win, mat = load_behavior(root, args.mouse, args.folder_date, base)
 
     inw = b["in_imaging_window"] > 0.5
     if not inw.any():
-        raise SystemExit("ERROR: no in-window behaviour samples")
+        raise SystemExit("ERROR: no in-window behavior samples")
     t_beh = b.loc[inw, "aligned_time_s"].to_numpy()
 
     span = (win[1] - win[0]) if win else (t_beh.max() - t_beh.min())
     rate = args.imaging_rate if args.imaging_rate else n_img / span
     print(f"imaging frames        : {n_img}  (from {src})")
-    print(f"imaging window        : {span:.3f} s" + ("" if win else "  [from behaviour, no .mat]"))
+    print(f"imaging window        : {span:.3f} s" + ("" if win else "  [from behavior, no .mat]"))
     print(f"imaging rate used     : {rate:.4f} Hz" +
           ("  (--imaging-rate override)" if args.imaging_rate else "  (derived = frames/window)"))
-    print(f"behaviour in-window   : {inw.sum()} samples, {t_beh.min():.2f}..{t_beh.max():.2f} s")
+    print(f"behavior in-window   : {inw.sum()} samples, {t_beh.min():.2f}..{t_beh.max():.2f} s")
 
-    # behaviour on the imaging-frame axis
+    # behavior on the imaging-frame axis
     f_beh = t_beh * rate
     pcol = "pupil_smooth" if args.pupil_signal == "smooth" else "pupil_raw"
     pupil = gaussian_filter1d(b.loc[inw, pcol].to_numpy(), 2)
@@ -148,7 +148,7 @@ def main() -> int:
     else:
         print(f"accelerometer         : MISSING ({acc_csv.name}); panel omitted")
 
-    # network events, coloured as in the coherence figure
+    # network events, colored as in the coherence figure
     ev_files = list(run_dir.glob("*_coherence_network_events.csv"))
     ev = pd.read_csv(ev_files[0]) if ev_files else pd.DataFrame()
     if len(ev):
@@ -156,7 +156,7 @@ def main() -> int:
         print("  lead_role counts    : " + ", ".join(f"{k}={v}" for k, v in
               ev['lead_role'].value_counts().items()))
 
-    def ev_colour(role: str) -> str:
+    def ev_color(role: str) -> str:
         r = str(role).lower()
         if "soma" in r:
             return "red"        # soma-led, matching the coherence figure
@@ -169,42 +169,50 @@ def main() -> int:
     if acc is not None:
         panels.append(("Accelerometer", f_acc, acc, C_ACCEL, (0, ACCEL_YMAX)))
 
-    fig, axes = plt.subplots(len(panels), 1, figsize=(13.5, 1.7 * len(panels)), sharex=True)
+    # Same figure width (12 in) and the same horizontal axis span as the coherence trace
+    # panel (TRACE_LEFT/RIGHT in segment_event_coherence.py), so stacked figures line up.
+    TRACE_LEFT, TRACE_RIGHT = 0.10, 0.955
+    panel_in, bottom_in = 1.45, 1.55
+    fig_h = panel_in * len(panels) + bottom_in + 0.1
+    fig, axes = plt.subplots(len(panels), 1, figsize=(12.0, fig_h), sharex=True)
     if len(panels) == 1:
         axes = [axes]
 
-    for ax, (label, x, y, colour, ylim) in zip(axes, panels):
+    for ax, (label, x, y, color, ylim) in zip(axes, panels):
         if args.event_lines:                      # off by default (cleaner panel)
             for _, r in ev.iterrows():
-                ax.axvline(float(r["onset_frame"]), color=ev_colour(r["lead_role"]),
+                ax.axvline(float(r["onset_frame"]), color=ev_color(r["lead_role"]),
                            lw=0.8, alpha=0.55, zorder=1)
-        ax.plot(x, y, color=colour, lw=1.4, zorder=3)
+        ax.plot(x, y, color=color, lw=1.4, zorder=3)
         ax.set_ylim(*ylim)
         ax.text(0.006, 0.93, label, transform=ax.transAxes, ha="left", va="top",
-                color=colour, fontweight="bold", fontsize=15)
+                color=color, fontweight="bold", fontsize=15)
         ax.grid(False)
         ax.tick_params(labelsize=11)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.yaxis.set_major_locator(MaxNLocator(nbins=3))
 
-    axes[-1].set_xlabel("frame", fontsize=13)     # same label as the coherence figure
-    axes[0].set_xlim(0, n_img)                    # same range, so the figures stack
+    axes[-1].set_xlabel("frame", fontsize=11)     # same label as the coherence figure
+    axes[0].set_xlim(0, n_img - 1)                # exactly the coherence trace range
 
     # seconds axis on top, for readers who want real time
-    sec = axes[0].secondary_xaxis("top", functions=(lambda f: f / rate, lambda s: s * rate))
+    # seconds as a second axis UNDER the frame axis (nothing between imaging and behavior)
+    sec = axes[-1].secondary_xaxis(-0.55, functions=(lambda f: f / rate, lambda s: s * rate))
     sec.set_xlabel("time from imaging onset (s)", fontsize=11)
-    sec.tick_params(labelsize=10)
+    sec.tick_params(labelsize=11)
 
-    ttl = f"{args.mouse}  {args.folder_date}  {args.run_id}   behaviour"
-    fig.suptitle(ttl, fontsize=11.5, y=1.0)
-    plt.tight_layout(h_pad=0.35)
+    fig.subplots_adjust(left=TRACE_LEFT, right=TRACE_RIGHT, top=1 - 0.1 / fig_h,
+                        bottom=bottom_in / fig_h, hspace=0.12)
+    # caption underneath, out of the way of the traces
+    fig.text(0.5, 0.012, f"{args.mouse}  {args.folder_date}  {args.run_id}   behavior",
+             ha="center", va="bottom", fontsize=10.5)
 
     stem = Path(args.out) if args.out else (run_dir / f"{run_dir.name}_clean_coherence_behavior")
     written = []
     for f in args.formats:
         p = stem.with_suffix(f".{f}")
-        plt.savefig(p, dpi=args.dpi, bbox_inches="tight")
+        plt.savefig(p, dpi=args.dpi)   # no bbox "tight": it would shift the axes
         written.append(p)
     plt.close(fig)
     for p in written:
