@@ -1,0 +1,292 @@
+#!/bin/bash -l
+# =============================================================================
+# submit_behavior.qsub
+#
+# SGE (Sun Grid Engine / qsub) batch script for the BU Shared Computing Cluster
+# (SCC). This runs ONLY the headless PASS 2 of the behavior pipeline:
+#
+#       run_behavior_batch.m   (MATLAB, fully non-interactive)
+#   then behavior_panels.py    (Python plots, --batch mode)
+#
+# It must NOT be used for PASS 1 (collect_rois.m): that step draws ROIs and
+# therefore needs a display, so it runs interactively via SCC OnDemand or
+# X-forwarding, NEVER through the scheduler. See README.md for the full
+# two-pass workflow and the reason for the split.
+#
+# Submit from the synced code directory, e.g.:
+#       cd /projectnb/devorlab/daria/code/batch
+#       mkdir -p logs
+#       qsub submit_behavior.qsub
+#
+# Override any default without editing this file, e.g.:
+#       qsub -v DATA_ROOT=/some/other/root,OUT_DIR=/some/out submit_behavior.qsub
+# (or export the variables before calling qsub).
+# =============================================================================
+
+# ---- SGE directives ---------------------------------------------------------
+# Every "#$" line is an SGE directive. Comments explain each one so the flags
+# are not cryptic. Tune the conservative defaults to your dataset.
+
+#$ -N behavior_batch
+#   ^ Job name shown by qstat and used to name the log file. Change per dataset
+#     if you want to tell concurrent jobs apart.
+
+#$ -j y
+#   ^ Join (merge) stderr INTO stdout so there is a single chronological log.
+
+#$ -o logs/
+#   ^ Write that merged log into the ./logs/ directory (relative to the
+#     submission dir because of -cwd below). SGE names it <jobname>.o<jobid>.
+#     The directory MUST already exist at submit time: run `mkdir -p logs`
+#     first (README says so too). Trailing slash = "this is a directory".
+
+#$ -cwd
+#   ^ Run the job in the directory it was submitted from (instead of $HOME),
+#     so `logs/` and the relative code path resolve as expected.
+
+#$ -l h_rt=12:00:00
+#   ^ Wall-clock HARD limit (HH:MM:SS). The job is killed if it runs longer.
+#     12h is a deliberately generous starting point for a many-run batch;
+#     lower it (e.g. 2:00:00) for small batches so it is scheduled sooner.
+#     UNVERIFIED against your queue's max h_rt: confirm allowed limits with
+#     `qconf -sq <queue>` or the SCC docs before requesting very long runs.
+
+# NOTE: SCC has NO 'matlab' resource complex -- `qconf -sc | grep -i matlab`
+# returns nothing, and requesting it makes qsub fail with
+#   Unable to run job: unknown resource "matlab".
+# Verified on scc1 2026-09-09. Licence tokens are therefore NOT reserved
+# through the scheduler here; if a licence is unavailable the MATLAB start
+# itself fails and the job exits nonzero, which is visible in the log.
+# (Directive intentionally removed, not commented-with-#$, because SGE
+#  would still parse a '#$' line.)
+#   ^ Request ONE MATLAB license token from the scheduler so the job does not
+#     start until a license is free (prevents license-exhaustion failures).
+#     UNVERIFIED: the exact resource name on this cluster. Confirm with
+#     `qconf -sc | grep -i matlab`  (look for the complex name, e.g. `matlab`),
+#     or the SCC MATLAB documentation, and adjust if it differs.
+
+# ---- Optional directives (left commented; enable if you need them) ----------
+# #$ -pe omp 1
+#   ^ Parallel environment / slot count. We run MATLAB -singleCompThread, so a
+#     single slot is correct. Only raise this if the code genuinely parallelizes
+#     (it does not today). UNVERIFIED PE name: check with `qconf -spl`.
+# #$ -l mem_per_core=8G
+#   ^ Memory reservation. TIFF stacks can be large; bump this if you hit OOM.
+#     UNVERIFIED complex name/units on this cluster: check `qconf -sc`.
+# #$ -m ea
+# #$ -M daria@bu.edu
+#   ^ Email on (e)nd / (a)bort. Fill in a real address to enable.
+
+set -o pipefail
+
+echo "=============================================================="
+echo "submit_behavior.qsub  starting"
+echo "  host      : $(hostname)"
+echo "  date      : $(date)"
+echo "  job id    : ${JOB_ID:-<interactive>}"
+echo "  job name  : ${JOB_NAME:-<none>}"
+echo "  pwd       : $(pwd -P)"
+echo "=============================================================="
+
+# ---- Parameters (env-overridable, sensible defaults) ------------------------
+# Same script serves multiple datasets: override via `qsub -v VAR=...` or by
+# exporting before qsub. Defaults target the Femtonics behavior tree.
+
+DATA_ROOT="${DATA_ROOT:-/projectnb/devorlab/daria/Femtonics/behavior}"   # root scanned by find_runs
+OUT_DIR="${OUT_DIR:-${DATA_ROOT}/processed}"                             # CSVs, mat/, manifest, figures land here
+ROI_FILE="${ROI_FILE:-${DATA_ROOT}/rois.mat}"                            # produced by PASS 1 (collect_rois)
+BATCH_DIR="${BATCH_DIR:-$(pwd -P)}"                                      # dir holding the .m/.py files (this synced dir)
+
+# Processing knobs forwarded into run_behavior_batch's opts struct.
+MIN_FRAMES="${MIN_FRAMES:-100}"          # min TIFFs for a folder to count as a run
+OVERWRITE="${OVERWRITE:-false}"          # 'true' to reprocess already-done runs
+WHISKER_BINNING="${WHISKER_BINNING:-long}"   # 'long' | 'pad' : which whisker signal gets binned
+# CROP_TO_WINDOW: 0 (default) = store FULL-LENGTH traces in the .mat and let
+# post-processing crop using the in_imaging_window flag. 1 = physically crop to
+# the imaging window (legacy behaviour of the original interactive script).
+CROP_TO_WINDOW="${CROP_TO_WINDOW:-0}"
+# PUPIL_POLARITY: 2P rigs (Femtonics) image the pupil BRIGHT because the
+# excitation laser retro-reflects out through it; 1P/widefield images it dark.
+# 'bright' is correct for this dataset. 'auto' detects per run.
+PUPIL_POLARITY="${PUPIL_POLARITY:-bright}"
+
+# ---- SAFETY GUARDS ----------------------------------------------------------
+# This job runs on a compute node and CREATES OUT_DIR. Confine every path to the
+# user's own directories so a bad `qsub -v` override cannot write elsewhere on a
+# shared filesystem. The job only ever creates and writes; it never deletes.
+_QSUB_DIR="$(cd "$(dirname "${0}")" && pwd -P)"
+# SGE copies the job script into a spool directory before executing it, so "$0"
+# does NOT point at the directory you submitted from and dirname "$0" therefore
+# cannot find our helper files. Verified on scc1: the job failed with
+# "scc_guard.sh not found next to this job script" even though the file was
+# present in the submit directory.
+#
+# SGE_O_WORKDIR is the directory qsub was invoked from, which is where batch/
+# lives. With "#$ -cwd" the runtime cwd is also that directory, so pwd is a
+# sound fallback; BATCH_DIR allows an explicit override.
+if [ -n "${BATCH_DIR:-}" ] && [ -f "${BATCH_DIR}/scc_guard.sh" ]; then
+    _QSUB_DIR="${BATCH_DIR}"
+elif [ -n "${SGE_O_WORKDIR:-}" ] && [ -f "${SGE_O_WORKDIR}/scc_guard.sh" ]; then
+    _QSUB_DIR="${SGE_O_WORKDIR}"
+elif [ -f "$(pwd -P)/scc_guard.sh" ]; then
+    _QSUB_DIR="$(pwd -P)"
+fi
+echo "  batch dir : ${_QSUB_DIR}"
+if [ -f "${_QSUB_DIR}/scc_guard.sh" ]; then
+    # shellcheck disable=SC1091
+    source "${_QSUB_DIR}/scc_guard.sh"
+    # FAIL CLOSED: an empty or truncated guard file sources without error but
+    # defines nothing. This job has no `set -e`, so without an explicit check it
+    # would continue with unvalidated (empty) paths.
+    guard_require
+    DATA_ROOT="$(assert_remote_path_allowed "${DATA_ROOT}" "DATA_ROOT")"
+    OUT_DIR="$(assert_remote_path_allowed   "${OUT_DIR}"   "OUT_DIR")"
+    ROI_FILE="$(assert_remote_path_allowed  "${ROI_FILE}"  "ROI_FILE")"
+    guard_summary
+else
+    echo "FATAL: scc_guard.sh not found next to this job script." >&2
+    echo "       Re-sync the batch/ directory (sync_to_scc.sh --go) and resubmit." >&2
+    exit 3
+fi
+
+# Plotting knobs.
+CROP_START="${CROP_START:-0}"            # seconds to trim after alignment in the plots
+
+echo "Parameters:"
+echo "  DATA_ROOT       = ${DATA_ROOT}"
+echo "  OUT_DIR         = ${OUT_DIR}"
+echo "  ROI_FILE        = ${ROI_FILE}"
+echo "  BATCH_DIR       = ${BATCH_DIR}"
+echo "  MIN_FRAMES      = ${MIN_FRAMES}"
+echo "  OVERWRITE       = ${OVERWRITE}"
+echo "  WHISKER_BINNING = ${WHISKER_BINNING}"
+echo "  CROP_TO_WINDOW  = ${CROP_TO_WINDOW}"
+echo "  PUPIL_POLARITY  = ${PUPIL_POLARITY}"
+echo "  CROP_START      = ${CROP_START}"
+echo
+
+# ---- Load the MATLAB environment module -------------------------------------
+# On SCC, MATLAB is provided as an environment module, not a fixed path.
+# UNVERIFIED: the exact module name/version. Confirm the available versions with
+#   `module avail matlab`
+# and pin one (e.g. matlab/2023a) for reproducibility. Bare `matlab` loads the
+# site default, which may change under you over time.
+module load matlab 2>/dev/null || {
+    echo "ERROR: 'module load matlab' failed. Run 'module avail matlab' to find"
+    echo "       the correct module name/version and edit this script." >&2
+    exit 3
+}
+
+# ---- MATLAB stage (PASS 2, fully headless) ----------------------------------
+# -nodisplay      : no X display (cannot pop or block on a GUI)
+# -nosplash       : no splash screen
+# -singleCompThread : one compute thread -> conservative CPU + license footprint
+# -batch "<stmt>" : run the statement non-interactively; NO desktop; the exit
+#                   code reflects whether the statement errored (so a crash is a
+#                   failed job, not a silent success). -batch already implies a
+#                   headless session; -nodisplay is kept as an explicit belt.
+#
+# addpath(BATCH_DIR) puts run_behavior_batch + helpers on the path; the function
+# itself also addpaths ../complete_behavior for the shared legacy helpers.
+# run_behavior_batch accepts the DATA_ROOT string as its first arg and calls
+# find_runs internally.
+
+MATLAB_CMD="addpath('${BATCH_DIR}'); \
+opts = struct('min_frames', ${MIN_FRAMES}, 'overwrite', ${OVERWRITE}, 'whisker_binning', '${WHISKER_BINNING}', 'crop_to_window', logical(${CROP_TO_WINDOW}), 'pupil_polarity', '${PUPIL_POLARITY}'); \
+run_behavior_batch('${DATA_ROOT}', '${ROI_FILE}', '${OUT_DIR}', opts);"
+
+echo "[submit_behavior] launching MATLAB PASS 2 ..."
+echo "  matlab -nodisplay -nosplash -singleCompThread -batch \"${MATLAB_CMD}\""
+matlab -nodisplay -nosplash -singleCompThread -batch "${MATLAB_CMD}"
+MATLAB_STATUS=$?
+echo "[submit_behavior] MATLAB exited with status ${MATLAB_STATUS}"
+
+# If MATLAB itself failed, do NOT run plots, and make the job visibly failed.
+if [ "${MATLAB_STATUS}" -ne 0 ]; then
+    echo "[submit_behavior] MATLAB stage FAILED (exit ${MATLAB_STATUS}); skipping plots." >&2
+    exit "${MATLAB_STATUS}"
+fi
+
+# ---- Python plotting stage (behavior_panels.py --batch) ---------------------
+# The plotting stage is best-effort: a plotting failure is REPORTED but must not
+# erase the fact that the MATLAB stage produced valid CSV/MAT/manifest outputs.
+# Hence we always exit with the MATLAB status below, never the plot status.
+#
+# Python on SCC: prefer a virtualenv that has numpy/pandas/matplotlib/scipy.
+# UNVERIFIED: the exact python3 module name/version and whether the site python
+# already carries those packages. Options, in order of preference:
+#   (a) point PY_VENV at a venv:  qsub -v PY_VENV=/projectnb/devorlab/daria/venvs/behavior ...
+#   (b) module load python3       (confirm name with `module avail python3`)
+#   (c) set PYTHON_BIN to an explicit interpreter path.
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+if [ -n "${PY_VENV:-}" ] && [ -f "${PY_VENV}/bin/activate" ]; then
+    echo "[submit_behavior] activating virtualenv ${PY_VENV}"
+    # shellcheck disable=SC1091
+    source "${PY_VENV}/bin/activate"
+    PYTHON_BIN="python"
+else
+    # UNVERIFIED module name; harmless if it fails, we fall back to PYTHON_BIN.
+    module load python3 2>/dev/null || true
+fi
+
+PLOT_CSV_DIR="${OUT_DIR}/csv"        # run_behavior_batch writes the CSVs here
+PLOT_FIG_DIR="${OUT_DIR}/figures"    # behavior_panels.py writes figures here
+
+# A per-run try/catch means run_behavior_batch returns cleanly even when EVERY
+
+# run failed, so a MATLAB exit status of 0 does NOT imply useful output. This
+
+# happened for real: all 44 runs failed on a missing helper and the job still
+
+# reported success to the scheduler. Inspect the manifest and fail loudly if
+
+# nothing succeeded.
+
+MANIFEST="${OUT_DIR}/batch_manifest.csv"
+
+if [ -f "${MANIFEST}" ]; then
+
+    N_OK=$(awk -F, 'NR>1 {for(i=1;i<=NF;i++) if($i=="ok") {c++; break}} END {print c+0}' "${MANIFEST}")
+
+    N_ROW=$(( $(wc -l < "${MANIFEST}") - 1 ))
+
+    echo "[submit_behavior] manifest: ${N_OK} ok of ${N_ROW} run(s)"
+
+    if [ "${N_ROW}" -gt 0 ] && [ "${N_OK}" -eq 0 ]; then
+
+        echo "[submit_behavior] FATAL: every run failed; see the per-run messages above" >&2
+
+        echo "[submit_behavior] and the warnings column of ${MANIFEST}." >&2
+
+        exit 1
+
+    fi
+
+else
+
+    echo "[submit_behavior] WARNING: no manifest at ${MANIFEST}" >&2
+
+fi
+
+
+echo "[submit_behavior] MATLAB stage OK; running plotting stage ..."
+echo "  ${PYTHON_BIN} ${BATCH_DIR}/behavior_panels.py --batch ${PLOT_CSV_DIR} --out ${PLOT_FIG_DIR} --crop-start ${CROP_START}"
+"${PYTHON_BIN}" "${BATCH_DIR}/behavior_panels.py" \
+    --batch "${PLOT_CSV_DIR}" \
+    --out "${PLOT_FIG_DIR}" \
+    --crop-start "${CROP_START}"
+PLOT_STATUS=$?
+
+if [ "${PLOT_STATUS}" -ne 0 ]; then
+    echo "[submit_behavior] WARNING: plotting stage failed (exit ${PLOT_STATUS})." >&2
+    echo "[submit_behavior] The MATLAB stage still SUCCEEDED: the CSVs, per-run" >&2
+    echo "[submit_behavior] .mat files and batch_manifest.csv in ${OUT_DIR} are" >&2
+    echo "[submit_behavior] valid. Re-run behavior_panels.py by hand to plot." >&2
+else
+    echo "[submit_behavior] plotting stage OK; figures in ${PLOT_FIG_DIR}"
+fi
+
+echo "[submit_behavior] done. Exiting with MATLAB status ${MATLAB_STATUS}."
+# Exit with the MATLAB status so the scheduler's notion of success/failure
+# tracks the analysis stage, not the best-effort plotting stage.
+exit "${MATLAB_STATUS}"

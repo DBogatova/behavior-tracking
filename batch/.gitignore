@@ -1,0 +1,9 @@
+# data and caches produced by the batch pipeline - never commit
+results/
+roi_stage/
+frame_cache/
+pipeline_logs/
+__pycache__/
+*.mat
+*.tif
+*.avi
