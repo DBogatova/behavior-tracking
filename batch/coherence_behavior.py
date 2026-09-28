@@ -103,6 +103,8 @@ def main() -> int:
     ap.add_argument("--out", default=None, help="output stem (default: alongside the coherence figure)")
     ap.add_argument("--formats", nargs="+", choices=["png", "pdf"], default=["png", "pdf"])
     ap.add_argument("--dpi", type=int, default=150)
+    ap.add_argument("--event-lines", action="store_true",
+                    help="draw the network-event vertical lines on the behaviour traces (off by default)")
     args = ap.parse_args()
 
     run_dir = Path(args.run_dir)
@@ -172,9 +174,10 @@ def main() -> int:
         axes = [axes]
 
     for ax, (label, x, y, colour, ylim) in zip(axes, panels):
-        for _, r in ev.iterrows():
-            ax.axvline(float(r["onset_frame"]), color=ev_colour(r["lead_role"]),
-                       lw=0.8, alpha=0.55, zorder=1)
+        if args.event_lines:                      # off by default (cleaner panel)
+            for _, r in ev.iterrows():
+                ax.axvline(float(r["onset_frame"]), color=ev_colour(r["lead_role"]),
+                           lw=0.8, alpha=0.55, zorder=1)
         ax.plot(x, y, color=colour, lw=1.4, zorder=3)
         ax.set_ylim(*ylim)
         ax.text(0.006, 0.93, label, transform=ax.transAxes, ha="left", va="top",
@@ -193,10 +196,8 @@ def main() -> int:
     sec.set_xlabel("time from imaging onset (s)", fontsize=11)
     sec.tick_params(labelsize=10)
 
-    ttl = (f"{args.mouse}  {args.folder_date}  {args.run_id}   behaviour on the coherence frame axis\n"
-           f"vlines = multi-segment network events (red = soma-led, blue = branch-led, grey = mid);  "
-           f"imaging {rate:.3f} Hz")
-    fig.suptitle(ttl, fontsize=11.5, y=1.02)
+    ttl = f"{args.mouse}  {args.folder_date}  {args.run_id}   behaviour"
+    fig.suptitle(ttl, fontsize=11.5, y=1.0)
     plt.tight_layout(h_pad=0.35)
 
     stem = Path(args.out) if args.out else (run_dir / f"{run_dir.name}_clean_coherence_behavior")
