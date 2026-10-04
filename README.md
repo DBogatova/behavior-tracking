@@ -8,7 +8,7 @@ This repository contains an script-based program for tracking pupil dilation and
 
 - complete_behavior - contains both pupillometry and whisker calculations
 - pupil - tracks pupil dilation
-- whisking - tracks whisking detection
+- whisking - tracks whisking detection following the _motion energy_ approach from Stringer et al. 2019
 
 All modules are independent of reach other and have separate main scripts denoted with DB_
 

@@ -6,14 +6,20 @@ clc
 
 %% Mouse data - adjust info!
 
-date = '25-12-26'; 
-mouse = 'rAi162_phpeb';
-run = 'Run006';
+date = '26-05-12'; 
+mouse = 'rbp4_132_phpeb';
+run = 'Run005';
 
 %% Set up directories
 
-root_folder = uigetdir('/projectnb/devorlab/daria/SCAPE/behavior/25-12-26/rAi162_phpeb/camera/'); % adjust root directory
-save_folder = '/projectnb/devorlab/dbalog/4daria/'; % adjust save folder
+%root_folder = uigetdir('/projectnb/devorlab/daria/SCAPE/behavior/26-02-17/rbp4cre_138_phpeb/camera/'); % adjust root directory
+%save_folder = '/projectnb/devorlab/daria/SCAPE/behavior/26-02-17/'; % adjust save folder
+root_folder = '/Users/daria/Desktop/behavior-tracking/Run005/';
+save_folder = '/Users/daria/Desktop/behavior-tracking/';
+
+% Trigger file: folder + run number + '_t1.mat' suffix
+trigger_folder = '/projectnb/devorlab/daria/SCAPE/behavior/26-05-12/rbp4_132_phpeb/trigger';
+trigger_file = fullfile(trigger_folder, [run '_t1.mat']);
 if ~isfolder(save_folder)
     mkdir(save_folder)
 end
@@ -38,29 +44,28 @@ filenames = natsortfiles(dir(root_folder));
 
 answer = input("Are you working with 1P or 2P data? 1P=1, 2P=0\n");
 if answer == 1
-    [pupil_raw, pupil_smooth, trigger] = pupil1P(root_folder);
+    [pupil_raw, pupil_smooth, trigger] = pupil1P(root_folder, trigger_file);
 elseif answer == 0
-    [pupil_raw, pupil_smooth, trigger] = pupil2P(root_folder);
+    [pupil_raw, pupil_smooth, trigger] = pupil2P(root_folder, trigger_file);
 end
 
 %% Figure 1 - Plot pupil signal
 
-time = 0:1/10:length(pupil_raw)/10;
-time = time(1:end-1);
+time_pupil = (0:length(pupil_raw)-1) / 10;
 
 t = tiledlayout(2,1);
 t.Title.String = strcat(strrep(mouse, '_', '-'), '-', date, '-', run);
 t.Title.FontWeight = 'bold';
 
 nexttile
-plot(time,pupil_raw)
+plot(time_pupil, pupil_raw)
 title('raw pupil signal')
 xlim('tight')
 xlabel('time [s]')
 ylabel('pupil dilation [%]')
 
 nexttile
-plot(time, pupil_smooth)
+plot(time_pupil, pupil_smooth)
 title('smooth pupil signal')
 xlim('tight')
 xlabel('time [s]')
@@ -70,6 +75,11 @@ ylabel('pupil dilation [%]')
 
 save_filename = strcat(mouse, '_', date, '_', run,'_pupil.png');
 exportgraphics(t, strcat(save_fig,save_filename))
+
+%% Bin pupil signal
+
+pupil_threshold = input("Input a pupil thresholding value between [0 1]:\n");
+pupil_bins = thresholding(pupil_smooth, pupil_threshold);
 
 %% Whisker
 
@@ -88,6 +98,17 @@ whisker_raw_long = whisker_raw_long_t(~isnan(whisker_raw_long_t));
 
 whisker_smooth_long_t = whisker_smooth_long.*trigger;
 whisker_smooth_long = whisker_smooth_long_t(~isnan(whisker_smooth_long_t));
+
+%% Ensure all signals and time vector have the same length
+
+nSamples = min([length(pupil_raw), length(whisker_smooth_long)]);
+pupil_raw = pupil_raw(1:nSamples);
+pupil_smooth = pupil_smooth(1:nSamples);
+whisker_raw_pad = whisker_raw_pad(1:nSamples);
+whisker_smooth_pad = whisker_smooth_pad(1:nSamples);
+whisker_raw_long = whisker_raw_long(1:nSamples);
+whisker_smooth_long = whisker_smooth_long(1:nSamples);
+time = (0:nSamples-1) / 10;
 
 %% Figure 2 - Plot whisker signal
 
@@ -122,17 +143,14 @@ exportgraphics(t, strcat(save_fig,save_filename))
 %% Choose whisker signal
 
 answer = input('Choose whisker signal for binning (all signals will be saved in the mat file):\nLong=0 Pad=1\n');
-switch answer
-    case answer==0
-        whisker = whisker_smooth_long;
-        settings.binning_choice = 'long';
-    case answer==1
-        whisker = whisker_smooth_pad;
-        settings.binnig_choice = 'smooth';
-%     case answer==2
-%         whisker = whisker_raw_long;
-%     case answer==3
-%         whisker = whisker_raw_pad;
+if answer == 0
+    whisker = whisker_smooth_long;
+    settings.binning_choice = 'long';
+elseif answer == 1
+    whisker = whisker_smooth_pad;
+    settings.binning_choice = 'pad';
+else
+    error('Unexpected whisker signal choice: %g. Expected 0 (Long) or 1 (Pad).', answer);
 end
 
 %% Bin whisker signal
@@ -177,11 +195,12 @@ if answer ==1
     %% Choose pupil & whisker signal for movie
 
 answer = input('Choose pupil signal for movie & big plot (both will be saved in mat file): Smooth=1 Raw=0\n');
-switch answer
-    case answer==1
-        pupil_movie = pupil_smooth;
-    case answer==0
-        pupil_movie = pupil_raw;
+if answer == 1
+    pupil_movie = pupil_smooth;
+elseif answer == 0
+    pupil_movie = pupil_raw;
+else
+    error('Unexpected pupil signal choice: %g. Expected 1 (Smooth) or 0 (Raw).', answer);
 end
 
 answer = input("Choose whisker signal for movie & big plot (all will be saved in mat file): Long=1 Pad=0\n");
@@ -256,7 +275,8 @@ clear whisker_bins whisker_raw_long whisker_raw_pad whisker_smooth_long whisker_
 
 pupil.pupil_raw = pupil_raw;
 pupil.pupil_smooth = pupil_smooth;
-clear pupil_raw pupil_smooth
+pupil.pupil_bins = pupil_bins;
+clear pupil_raw pupil_smooth pupil_bins
 
 clear pupil_movie whisker_movie t time answer save_fig save_filename
 clear whisker_raw_long_t whisker_raw_pad_t whisker_smooth_pad_t whisker_smooth_long_t
