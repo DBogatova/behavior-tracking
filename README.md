@@ -1,5 +1,7 @@
 # Behavior tracking for various _in vivo_ mouse experiments
 
+> **Original code by Dora Balog** ([dorabalog/behavior-tracking](https://github.com/dorabalog/behavior-tracking)). This is a fork; the `batch/` pipeline for Femtonics runs was added by Daria Bogatova and calls Dora's functions. See [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md) for who wrote what.
+
 This repository contains an script-based program for tracking pupil dilation and whisker motion detection.
 
 ## Navigation 

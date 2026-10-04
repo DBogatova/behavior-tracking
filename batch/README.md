@@ -1,5 +1,7 @@
 # Behavior batch pipeline — SCC operator's guide
 
+> Built on **Dora Balog's** pupil / whisking / blinking analysis ([dorabalog/behavior-tracking](https://github.com/dorabalog/behavior-tracking), `../complete_behavior/`); this pipeline batches and schedules it for Femtonics runs on the SCC. See [../ACKNOWLEDGMENTS.md](../ACKNOWLEDGMENTS.md).
+
 Batched, mostly-non-interactive pupil / whisking / accelerometer analysis for
 Femtonics behavior-camera runs, packaged to run headless on the Boston
 University Shared Computing Cluster (SCC, Sun Grid Engine / `qsub`).

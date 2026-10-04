@@ -1,5 +1,7 @@
 # vendor/
 
+Authorship: `blinking.m` and `smooth1d.m` are verbatim copies from **Dora Balog's** `../complete_behavior/`; `natsort.m` and `natsortfiles.m` are by Stephen Cobeldick (MATLAB File Exchange; copyright notices kept).
+
 Copies of the shared helper functions the batch pipeline calls, taken from
 `../complete_behavior/`.
 
